@@ -32,15 +32,7 @@ WEEK_DAYS = {
 
 
 def post_facebook(access_token, group_id, filepath, text):
-    if filepath is None:
-        url = f"https://graph.facebook.com/{group_id}/feed"
-        params = {
-            'access_token':access_token,
-            'message':text,
-        }
-        response = requests.post(url, params=params)
-        response.raise_for_status()
-    else:    
+    if filepath:
         url = f"https://graph.facebook.com/{group_id}/photos"
         params = {
             'access_token':access_token,
@@ -52,16 +44,25 @@ def post_facebook(access_token, group_id, filepath, text):
             }
             response = requests.post(url, params=params, files=files)
             response.raise_for_status()
+    else:    
+        url = f"https://graph.facebook.com/{group_id}/feed"
+        params = {
+            'access_token':access_token,
+            'message':text,
+        }
+        response = requests.post(url, params=params)
+        response.raise_for_status()
+
     
 
 def post_telegram(bot_token, chat_id, filepath, text):
     bot = telegram.Bot(token=bot_token)
     
-    if filepath is not None:
+    if filepath:
         with open(filepath, 'rb') as file:
             bot.send_photo(chat_id=chat_id, photo=file)
 
-    if text is not None:
+    if text:
         bot.send_message(chat_id=chat_id, text=text)
 
 
@@ -72,7 +73,7 @@ def post_vkontakte(login, password, group_id, album_id, filepath, text):
     upload = vk_api.VkUpload(vk_session)
     
     attachments = ''
-    if filepath is not None:
+    if filepath:
         photo = upload.photo(
             filepath,
             album_id=album_id,
@@ -136,35 +137,9 @@ def send_post_to_publication(
     article_address = post['article_address']
     image_address = post['image_address']
 
-    if article_address is None:
+    if article_address:
         article_text = ''
 
-        if vk_tag == 'да':
-            post_vkontakte(
-                vk_login,
-                vk_password, 
-                vk_group_id, 
-                vk_album_id, 
-                image_address,
-                article_text,
-            )
-    
-        if telegram_tag == 'да':
-            post_telegram(
-                telegram_bot_token,
-                telegram_chat_id, 
-                image_address,
-                article_text,
-            )
-    
-        if facebook_tag == 'да':
-            post_facebook(
-                facebook_access_token,
-                facebook_group_id, 
-                image_address,
-                article_text,
-            )
-    else:
         with open(article_address, 'r', encoding='utf8') as file:
             article_text = file.read()
         
@@ -193,6 +168,32 @@ def send_post_to_publication(
                     image_address,
                     article_text,
                 )
+    else:
+        if vk_tag == 'да':
+            post_vkontakte(
+                vk_login,
+                vk_password, 
+                vk_group_id, 
+                vk_album_id, 
+                image_address,
+                article_text,
+            )
+    
+        if telegram_tag == 'да':
+            post_telegram(
+                telegram_bot_token,
+                telegram_chat_id, 
+                image_address,
+                article_text,
+            )
+    
+        if facebook_tag == 'да':
+            post_facebook(
+                facebook_access_token,
+                facebook_group_id, 
+                image_address,
+                article_text,
+            )
 
 
 def get_not_published_posts(posts, row_start_number):
@@ -324,7 +325,7 @@ def main():
         not_published_posts = get_not_published_posts(all_posts, row_start_number)
         post_for_publication = find_post_for_publication(not_published_posts)
     
-        if post_for_publication is not None:
+        if post_for_publication:
             send_post_to_publication(
                 post_for_publication,
                 facebook_access_token,
