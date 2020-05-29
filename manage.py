@@ -197,45 +197,41 @@ def send_post_to_publication(
             )
 
 
-def get_not_published_posts(posts, row_start_number):
+def get_not_published_post(post, row_number, drive):
 
     not_published_posts = []
     article_address=None
     image_address=None
 
-    gauth = GoogleAuth()
-    gauth.LocalWebserverAuth()
-    drive = GoogleDrive(gauth)
-
-    for row_number, post in enumerate(posts, row_start_number):
-
-        vk_tag, telegram_tag, facebook_tag, publication_week_day_name, publication_hour, article_link, image_link, is_published = post
+    vk_tag, telegram_tag, facebook_tag, publication_week_day_name, publication_hour, article_link, image_link, is_published = post
         
-        if is_published=='да':
-            continue
-        
-        if article_link:
-            article_file_id = extract_file_id(article_link)
-            article_address = download_txt(article_file_id, drive)
-
-        if image_link:
-            image_file_id = extract_file_id(image_link)
-            image_address = download_image(image_file_id, drive)
-        
-        publication_week_day = WEEK_DAYS[publication_week_day_name]
-        
-        not_published_posts.append({
-            'vk_tag': vk_tag,
-            'telegram_tag': telegram_tag,
-            'facebook_tag': facebook_tag,
-            'publication_week_day': publication_week_day,
-            'publication_hour': publication_hour,
-            'article_address': article_address,
-            'image_address': image_address,
-            'row_number': row_number
-        })
+    is_published_normalize = is_published.strip().lower()
     
-    return not_published_posts
+    if is_published_normalize=='да':
+        return
+        
+    if article_link:
+        article_file_id = extract_file_id(article_link)
+        article_address = download_txt(article_file_id, drive)
+    
+    if image_link:
+        image_file_id = extract_file_id(image_link)
+        image_address = download_image(image_file_id, drive)
+        
+    publication_week_day = WEEK_DAYS[publication_week_day_name]
+        
+    not_published_post = {
+        'vk_tag': vk_tag,
+        'telegram_tag': telegram_tag,
+        'facebook_tag': facebook_tag,
+        'publication_week_day': publication_week_day,
+        'publication_hour': publication_hour,
+        'article_address': article_address,
+        'image_address': image_address,
+        'row_number': row_number
+    }
+    
+    return not_published_post
 
 
 def load_token_pickle():
@@ -320,11 +316,22 @@ def main():
     Path('articles').mkdir(parents=True, exist_ok=True)
     Path('images').mkdir(parents=True, exist_ok=True)
 
+    gauth = GoogleAuth()
+    gauth.LocalWebserverAuth()
+    drive = GoogleDrive(gauth)
+
     creds = load_token_pickle()
     
     while True:
+        not_published_posts = []
         all_posts = get_all_posts(creds, spreadsheet_id, range_name)
-        not_published_posts = get_not_published_posts(all_posts, row_start_number)
+        
+        for row_number, post in enumerate(all_posts, row_start_number):
+            not_published_post = get_not_published_post(post, row_number, drive)
+            if not_published_post:
+                not_published_posts.append(not_published_post)
+            
+
         posts_for_publication = find_posts_for_publication(not_published_posts)
     
         if posts_for_publication:
