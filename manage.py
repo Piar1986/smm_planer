@@ -98,7 +98,7 @@ def extract_file_id(text):
     return file_id
 
 
-def download_image(file_id, folder='images'):
+def download_image(file_id, drive, folder='images'):
     file = drive.CreateFile({'id': file_id})
     file.FetchMetadata(fields='title')
     file_title = file['title']
@@ -108,7 +108,7 @@ def download_image(file_id, folder='images'):
     return filepath
 
 
-def download_txt(file_id, folder='articles'):
+def download_txt(file_id, drive, folder='articles'):
     file = drive.CreateFile({'id': file_id})
     file.FetchMetadata(fields='title')
     filename = file['title']
@@ -118,7 +118,18 @@ def download_txt(file_id, folder='articles'):
     return filepath
 
 
-def send_post_to_publication(post):
+def send_post_to_publication(
+    post,
+    facebook_access_token,
+    facebook_group_id,
+    telegram_bot_token,
+    telegram_chat_id,
+    vk_login,
+    vk_password,
+    vk_access_token,
+    vk_group_id,
+    vk_album_id
+    ):
     vk_tag = post['vk_tag']
     telegram_tag = post['telegram_tag']
     facebook_tag = post['facebook_tag']
@@ -184,9 +195,13 @@ def send_post_to_publication(post):
                 )
 
 
-def get_not_published_posts(posts):
+def get_not_published_posts(posts, row_start_number):
 
     not_published_posts = []
+
+    gauth = GoogleAuth()
+    gauth.LocalWebserverAuth()
+    drive = GoogleDrive(gauth)
 
     for row_number, post in enumerate(posts, row_start_number):
 
@@ -199,13 +214,13 @@ def get_not_published_posts(posts):
             article_address=None
         else:
             article_file_id = extract_file_id(article_link)
-            article_address = download_txt(article_file_id)
+            article_address = download_txt(article_file_id, drive)
 
         if image_link=='':
             image_address=None
         else:
             image_file_id = extract_file_id(image_link)
-            image_address = download_image(image_file_id)
+            image_address = download_image(image_file_id, drive)
         
         publication_week_day = WEEK_DAYS[publication_week_day_name]
         
@@ -256,7 +271,7 @@ def find_post_for_publication(posts):
             return post
 
 
-def get_all_posts(creds):
+def get_all_posts(creds, spreadsheet_id, range_name):
     service = build('sheets', 'v4', credentials=creds)
     request = service.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id, 
@@ -267,7 +282,7 @@ def get_all_posts(creds):
     return all_posts
 
 
-def tag_published_post(creds, row_number):    
+def tag_published_post(creds, spreadsheet_id, row_number):    
     service = build('sheets', 'v4', credentials=creds)
     body = {
         'values': [['да']]
@@ -281,23 +296,6 @@ def tag_published_post(creds, row_number):
 
 
 def main():
-    
-    creds = load_token_pickle()
-    
-    while True:
-        all_posts = get_all_posts(creds)
-        not_published_posts = get_not_published_posts(all_posts)
-        post_for_publication = find_post_for_publication(not_published_posts)
-    
-        if post_for_publication is not None:
-            send_post_to_publication(post_for_publication)
-            post_row_number = post_for_publication['row_number']
-            tag_published_post(creds, post_row_number)
-    
-        time.sleep(300)
-
-
-if __name__ == '__main__':
     load_dotenv()
 
     spreadsheet_id = os.getenv('SPREADSHEET_ID')
@@ -319,8 +317,31 @@ if __name__ == '__main__':
     Path('articles').mkdir(parents=True, exist_ok=True)
     Path('images').mkdir(parents=True, exist_ok=True)
 
-    gauth = GoogleAuth()
-    gauth.LocalWebserverAuth()
-    drive = GoogleDrive(gauth)
+    creds = load_token_pickle()
+    
+    while True:
+        all_posts = get_all_posts(creds, spreadsheet_id, range_name)
+        not_published_posts = get_not_published_posts(all_posts, row_start_number)
+        post_for_publication = find_post_for_publication(not_published_posts)
+    
+        if post_for_publication is not None:
+            send_post_to_publication(
+                post_for_publication,
+                facebook_access_token,
+                facebook_group_id,
+                telegram_bot_token,
+                telegram_chat_id,
+                vk_login,
+                vk_password,
+                vk_access_token,
+                vk_group_id,
+                vk_album_id,
+                )
+            post_row_number = post_for_publication['row_number']
+            tag_published_post(creds, spreadsheet_id, post_row_number)
+    
+        time.sleep(300)
 
+
+if __name__ == '__main__':
     main()
