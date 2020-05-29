@@ -262,14 +262,17 @@ def load_token_pickle():
     return creds
 
 
-def find_post_for_publication(posts):
+def find_posts_for_publication(posts):
+    posts_for_publication = []
     today = datetime.datetime.today()
     today_week_day = today.weekday()
     today_hour = today.hour
 
     for post in posts:
         if today_week_day==post['publication_week_day'] and today_hour==post['publication_hour']:
-            return post
+            posts_for_publication.append(post)
+    
+    return posts_for_publication
 
 
 def get_all_posts(creds, spreadsheet_id, range_name):
@@ -323,23 +326,24 @@ def main():
     while True:
         all_posts = get_all_posts(creds, spreadsheet_id, range_name)
         not_published_posts = get_not_published_posts(all_posts, row_start_number)
-        post_for_publication = find_post_for_publication(not_published_posts)
+        posts_for_publication = find_posts_for_publication(not_published_posts)
     
-        if post_for_publication:
-            send_post_to_publication(
-                post_for_publication,
-                facebook_access_token,
-                facebook_group_id,
-                telegram_bot_token,
-                telegram_chat_id,
-                vk_login,
-                vk_password,
-                vk_access_token,
-                vk_group_id,
-                vk_album_id,
-                )
-            post_row_number = post_for_publication['row_number']
-            tag_published_post(creds, spreadsheet_id, post_row_number)
+        if posts_for_publication:
+            for post in posts_for_publication:
+                send_post_to_publication(
+                    post,
+                    facebook_access_token,
+                    facebook_group_id,
+                    telegram_bot_token,
+                    telegram_chat_id,
+                    vk_login,
+                    vk_password,
+                    vk_access_token,
+                    vk_group_id,
+                    vk_album_id,
+                    )
+                post_row_number = post['row_number']
+                tag_published_post(creds, spreadsheet_id, post_row_number)
     
         time.sleep(300)
 
