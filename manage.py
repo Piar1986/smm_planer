@@ -131,9 +131,9 @@ def send_post_to_publication(
     vk_group_id,
     vk_album_id
     ):
-    vk_tag = post['vk_tag']
-    telegram_tag = post['telegram_tag']
-    facebook_tag = post['facebook_tag']
+    vk_tag = post['vk_tag'].strip().lower()
+    telegram_tag = post['telegram_tag'].strip().lower()
+    facebook_tag = post['facebook_tag'].strip().lower()
     article_address = post['article_address']
     image_address = post['image_address']
 
