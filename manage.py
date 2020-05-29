@@ -44,17 +44,17 @@ def post_facebook(access_token, group_id, filepath, text):
             }
             response = requests.post(url, params=params, files=files)
             response.raise_for_status()
-    else:    
-        url = f"https://graph.facebook.com/{group_id}/feed"
-        params = {
-            'access_token':access_token,
-            'message':text,
-        }
-        response = requests.post(url, params=params)
-        response.raise_for_status()
+        return
+ 
+    url = f"https://graph.facebook.com/{group_id}/feed"
+    params = {
+        'access_token':access_token,
+        'message':text,
+    }
+    response = requests.post(url, params=params)
+    response.raise_for_status()
 
     
-
 def post_telegram(bot_token, chat_id, filepath, text):
     bot = telegram.Bot(token=bot_token)
     
@@ -131,6 +131,7 @@ def send_post_to_publication(
     vk_group_id,
     vk_album_id
     ):
+
     vk_tag = post['vk_tag'].strip().lower()
     telegram_tag = post['telegram_tag'].strip().lower()
     facebook_tag = post['facebook_tag'].strip().lower()
@@ -199,6 +200,8 @@ def send_post_to_publication(
 def get_not_published_posts(posts, row_start_number):
 
     not_published_posts = []
+    article_address=None
+    image_address=None
 
     gauth = GoogleAuth()
     gauth.LocalWebserverAuth()
@@ -214,14 +217,10 @@ def get_not_published_posts(posts, row_start_number):
         if article_link:
             article_file_id = extract_file_id(article_link)
             article_address = download_txt(article_file_id, drive)
-        else:
-            article_address=None
 
         if image_link:
             image_file_id = extract_file_id(image_link)
             image_address = download_image(image_file_id, drive)
-        else:
-            image_address=None
         
         publication_week_day = WEEK_DAYS[publication_week_day_name]
         
