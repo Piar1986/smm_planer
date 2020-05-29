@@ -211,17 +211,17 @@ def get_not_published_posts(posts, row_start_number):
         if is_published=='да':
             continue
         
-        if article_link=='':
-            article_address=None
-        else:
+        if article_link:
             article_file_id = extract_file_id(article_link)
             article_address = download_txt(article_file_id, drive)
-
-        if image_link=='':
-            image_address=None
         else:
+            article_address=None
+
+        if image_link:
             image_file_id = extract_file_id(image_link)
             image_address = download_image(image_file_id, drive)
+        else:
+            image_address=None
         
         publication_week_day = WEEK_DAYS[publication_week_day_name]
         
