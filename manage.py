@@ -99,21 +99,22 @@ def extract_file_id(text):
     return file_id
 
 
-def download_image(file_id, drive, folder='images'):
+def get_file_title(file_id, drive):
     file = drive.CreateFile({'id': file_id})
     file.FetchMetadata(fields='title')
     file_title = file['title']
+    return file_title
+
+
+def download_image(file_id, file_title, drive, folder='images'):
     filepath = os.path.join(folder, file_title)
     file = drive.CreateFile({'id': file_id})
     file.GetContentFile(filepath)
     return filepath
 
 
-def download_txt(file_id, drive, folder='articles'):
-    file = drive.CreateFile({'id': file_id})
-    file.FetchMetadata(fields='title')
-    filename = file['title']
-    filepath = os.path.join(folder, sanitize_filename(filename + '.txt'))
+def download_txt(file_id, file_title, drive, folder='articles'):
+    filepath = os.path.join(folder, sanitize_filename(file_title + '.txt'))
     file = drive.CreateFile({'id': file_id})
     file.GetContentFile(filepath, mimetype='text/plain')
     return filepath
@@ -212,11 +213,13 @@ def get_not_published_post(post, row_number, drive):
         
     if article_link:
         article_file_id = extract_file_id(article_link)
-        article_address = download_txt(article_file_id, drive)
+        article_file_title = get_file_title(article_file_id, drive)
+        article_address = download_txt(article_file_id, article_file_title, drive)
     
     if image_link:
         image_file_id = extract_file_id(image_link)
-        image_address = download_image(image_file_id, drive)
+        image_file_title = get_file_title(image_file_id, drive)
+        image_address = download_image(image_file_id, image_file_title, drive)
         
     publication_week_day = WEEK_DAYS[publication_week_day_name]
         
