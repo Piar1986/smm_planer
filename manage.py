@@ -111,7 +111,6 @@ def download_image(file_id, file_title, drive, folder):
     filepath = os.path.join(folder, file_title)
     file = drive.CreateFile({'id': file_id})
     file.GetContentFile(filepath)
-    print(filepath)
     return filepath
 
 
@@ -119,8 +118,11 @@ def download_txt(file_id, file_title, drive, folder):
     filepath = os.path.join(folder, sanitize_filename(file_title + '.txt'))
     file = drive.CreateFile({'id': file_id})
     file.GetContentFile(filepath, mimetype='text/plain')
-    print(filepath)
     return filepath
+
+
+def normalize_tag(tag):
+    return tag.strip().lower()
 
 
 def send_post_to_publication(
@@ -137,15 +139,15 @@ def send_post_to_publication(
     drive
     ):
 
-    vk_tag = post['vk_tag'].strip().lower()
-    telegram_tag = post['telegram_tag'].strip().lower()
-    facebook_tag = post['facebook_tag'].strip().lower()
+    article_text = ''
+    image_address = ''
+    vk_tag = post['vk_tag']
+    telegram_tag = post['telegram_tag']
+    facebook_tag = post['facebook_tag']
     article_file_id = post['article_file_id']
     image_file_id = post['image_file_id']
 
-    with tempfile.TemporaryDirectory(dir = '') as tmpdirname:
-        article_text = ''
-        image_address = ''
+    with tempfile.TemporaryDirectory() as tmpdirname:
 
         if image_file_id:
             image_file_title = get_file_title(image_file_id, drive)
@@ -158,68 +160,45 @@ def send_post_to_publication(
             with open(article_filepath, 'r', encoding='utf8') as file:
                 article_text = file.read()
             
-                if vk_tag == 'да':
-                    post_vkontakte(
-                        vk_login,
-                        vk_password, 
-                        vk_group_id, 
-                        vk_album_id, 
-                        image_address,
-                        article_text,
-                    )
+        if vk_tag == 'да':
+            post_vkontakte(
+                vk_login,
+                vk_password, 
+                vk_group_id, 
+                vk_album_id, 
+                image_address,
+                article_text,
+            )
             
-                if telegram_tag == 'да':
-                    post_telegram(
-                        telegram_bot_token,
-                        telegram_chat_id, 
-                        image_address,
-                        article_text,
-                    )
+        if telegram_tag == 'да':
+            post_telegram(
+                telegram_bot_token,
+                telegram_chat_id, 
+                image_address,
+                article_text,
+            )
             
-                if facebook_tag == 'да':
-                    post_facebook(
-                        facebook_access_token,
-                        facebook_group_id, 
-                        image_address,
-                        article_text,
-                    )
-        else:
-            if vk_tag == 'да':
-                post_vkontakte(
-                    vk_login,
-                    vk_password, 
-                    vk_group_id, 
-                    vk_album_id, 
-                    image_address,
-                    article_text,
-                )
+        if facebook_tag == 'да':
+            post_facebook(
+                facebook_access_token,
+                facebook_group_id, 
+                image_address,
+                article_text,
+            )
         
-            if telegram_tag == 'да':
-                post_telegram(
-                    telegram_bot_token,
-                    telegram_chat_id, 
-                    image_address,
-                    article_text,
-                )
-        
-            if facebook_tag == 'да':
-                post_facebook(
-                    facebook_access_token,
-                    facebook_group_id, 
-                    image_address,
-                    article_text,
-                )
-
 
 def get_not_published_post(post, row_number, drive):
 
     not_published_posts = []
-    article_file_id=None
-    image_file_id=None
+    article_file_id = None
+    image_file_id = None
 
     vk_tag, telegram_tag, facebook_tag, publication_week_day_name, publication_hour, article_link, image_link, is_published = post
-        
-    is_published_normalize = is_published.strip().lower()
+    
+    vk_tag_normalize = normalize_tag(vk_tag)
+    telegram_tag_normalize = normalize_tag(telegram_tag)
+    facebook_tag_normalize = normalize_tag(facebook_tag)
+    is_published_normalize = normalize_tag(is_published)
     
     if is_published_normalize=='да':
         return
@@ -231,11 +210,11 @@ def get_not_published_post(post, row_number, drive):
         image_file_id = extract_file_id(image_link)
         
     publication_week_day = WEEK_DAYS[publication_week_day_name]
-        
+
     not_published_post = {
-        'vk_tag': vk_tag,
-        'telegram_tag': telegram_tag,
-        'facebook_tag': facebook_tag,
+        'vk_tag': vk_tag_normalize,
+        'telegram_tag': telegram_tag_normalize,
+        'facebook_tag': facebook_tag_normalize,
         'publication_week_day': publication_week_day,
         'publication_hour': publication_hour,
         'article_file_id': article_file_id,
@@ -340,7 +319,6 @@ def main():
             if not_published_post:
                 not_published_posts.append(not_published_post)
             
-
         posts_for_publication = find_posts_for_publication(not_published_posts)
     
         if posts_for_publication:
