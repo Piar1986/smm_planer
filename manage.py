@@ -7,6 +7,7 @@ import time
 import requests
 import telegram
 import vk_api
+import tempfile
 from urllib.parse import urlparse
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -106,17 +107,19 @@ def get_file_title(file_id, drive):
     return file_title
 
 
-def download_image(file_id, file_title, drive, folder='images'):
+def download_image(file_id, file_title, drive, folder):
     filepath = os.path.join(folder, file_title)
     file = drive.CreateFile({'id': file_id})
     file.GetContentFile(filepath)
+    print(filepath)
     return filepath
 
 
-def download_txt(file_id, file_title, drive, folder='articles'):
+def download_txt(file_id, file_title, drive, folder):
     filepath = os.path.join(folder, sanitize_filename(file_title + '.txt'))
     file = drive.CreateFile({'id': file_id})
     file.GetContentFile(filepath, mimetype='text/plain')
+    print(filepath)
     return filepath
 
 
@@ -130,21 +133,57 @@ def send_post_to_publication(
     vk_password,
     vk_access_token,
     vk_group_id,
-    vk_album_id
+    vk_album_id,
+    drive
     ):
 
     vk_tag = post['vk_tag'].strip().lower()
     telegram_tag = post['telegram_tag'].strip().lower()
     facebook_tag = post['facebook_tag'].strip().lower()
-    article_address = post['article_address']
-    image_address = post['image_address']
+    article_file_id = post['article_file_id']
+    image_file_id = post['image_file_id']
 
-    if article_address:
+    with tempfile.TemporaryDirectory(dir = '') as tmpdirname:
         article_text = ''
+        image_address = ''
 
-        with open(article_address, 'r', encoding='utf8') as file:
-            article_text = file.read()
-        
+        if image_file_id:
+            image_file_title = get_file_title(image_file_id, drive)
+            image_address = download_image(image_file_id, image_file_title, drive, tmpdirname)
+    
+        if article_file_id:
+            article_file_title = get_file_title(article_file_id, drive)
+            article_filepath = download_txt(article_file_id, article_file_title, drive, tmpdirname)
+    
+            with open(article_filepath, 'r', encoding='utf8') as file:
+                article_text = file.read()
+            
+                if vk_tag == 'да':
+                    post_vkontakte(
+                        vk_login,
+                        vk_password, 
+                        vk_group_id, 
+                        vk_album_id, 
+                        image_address,
+                        article_text,
+                    )
+            
+                if telegram_tag == 'да':
+                    post_telegram(
+                        telegram_bot_token,
+                        telegram_chat_id, 
+                        image_address,
+                        article_text,
+                    )
+            
+                if facebook_tag == 'да':
+                    post_facebook(
+                        facebook_access_token,
+                        facebook_group_id, 
+                        image_address,
+                        article_text,
+                    )
+        else:
             if vk_tag == 'да':
                 post_vkontakte(
                     vk_login,
@@ -170,39 +209,13 @@ def send_post_to_publication(
                     image_address,
                     article_text,
                 )
-    else:
-        if vk_tag == 'да':
-            post_vkontakte(
-                vk_login,
-                vk_password, 
-                vk_group_id, 
-                vk_album_id, 
-                image_address,
-                article_text,
-            )
-    
-        if telegram_tag == 'да':
-            post_telegram(
-                telegram_bot_token,
-                telegram_chat_id, 
-                image_address,
-                article_text,
-            )
-    
-        if facebook_tag == 'да':
-            post_facebook(
-                facebook_access_token,
-                facebook_group_id, 
-                image_address,
-                article_text,
-            )
 
 
 def get_not_published_post(post, row_number, drive):
 
     not_published_posts = []
-    article_address=None
-    image_address=None
+    article_file_id=None
+    image_file_id=None
 
     vk_tag, telegram_tag, facebook_tag, publication_week_day_name, publication_hour, article_link, image_link, is_published = post
         
@@ -213,13 +226,9 @@ def get_not_published_post(post, row_number, drive):
         
     if article_link:
         article_file_id = extract_file_id(article_link)
-        article_file_title = get_file_title(article_file_id, drive)
-        article_address = download_txt(article_file_id, article_file_title, drive)
     
     if image_link:
         image_file_id = extract_file_id(image_link)
-        image_file_title = get_file_title(image_file_id, drive)
-        image_address = download_image(image_file_id, image_file_title, drive)
         
     publication_week_day = WEEK_DAYS[publication_week_day_name]
         
@@ -229,8 +238,8 @@ def get_not_published_post(post, row_number, drive):
         'facebook_tag': facebook_tag,
         'publication_week_day': publication_week_day,
         'publication_hour': publication_hour,
-        'article_address': article_address,
-        'image_address': image_address,
+        'article_file_id': article_file_id,
+        'image_file_id': image_file_id,
         'row_number': row_number
     }
     
@@ -316,9 +325,6 @@ def main():
     vk_group_id = os.getenv('VK_GROUP_ID')
     vk_album_id = os.getenv('VK_ALBUM_ID')
 
-    Path('articles').mkdir(parents=True, exist_ok=True)
-    Path('images').mkdir(parents=True, exist_ok=True)
-
     gauth = GoogleAuth()
     gauth.LocalWebserverAuth()
     drive = GoogleDrive(gauth)
@@ -350,6 +356,7 @@ def main():
                     vk_access_token,
                     vk_group_id,
                     vk_album_id,
+                    drive
                     )
                 post_row_number = post['row_number']
                 tag_published_post(creds, spreadsheet_id, post_row_number)
