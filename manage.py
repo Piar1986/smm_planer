@@ -14,7 +14,6 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
-from pathlib import Path
 from pathvalidate import sanitize_filename
 from dotenv import load_dotenv
 
@@ -121,11 +120,15 @@ def download_txt(file_id, file_title, drive, folder):
     return filepath
 
 
-def normalize_tag(tag):
-    return tag.strip().lower()
+def get_tag_status(tag):
+    tag_status = False
+    tag_normalize = tag.strip().lower()
+    if tag_normalize=='да':
+        tag_status = True
+    return tag_status
 
 
-def send_post_to_publication(
+def publish_post(
     post,
     facebook_access_token,
     facebook_group_id,
@@ -140,10 +143,10 @@ def send_post_to_publication(
     ):
 
     article_text = ''
-    image_address = ''
-    vk_tag = post['vk_tag']
-    telegram_tag = post['telegram_tag']
-    facebook_tag = post['facebook_tag']
+    image_address = None
+    vk_publication = post['vk_publication']
+    telegram_publication = post['telegram_publication']
+    facebook_publication = post['facebook_publication']
     article_file_id = post['article_file_id']
     image_file_id = post['image_file_id']
 
@@ -160,7 +163,7 @@ def send_post_to_publication(
             with open(article_filepath, 'r', encoding='utf8') as file:
                 article_text = file.read()
             
-        if vk_tag == 'да':
+        if vk_publication:
             post_vkontakte(
                 vk_login,
                 vk_password, 
@@ -170,7 +173,7 @@ def send_post_to_publication(
                 article_text,
             )
             
-        if telegram_tag == 'да':
+        if telegram_publication:
             post_telegram(
                 telegram_bot_token,
                 telegram_chat_id, 
@@ -178,7 +181,7 @@ def send_post_to_publication(
                 article_text,
             )
             
-        if facebook_tag == 'да':
+        if facebook_publication:
             post_facebook(
                 facebook_access_token,
                 facebook_group_id, 
@@ -187,21 +190,18 @@ def send_post_to_publication(
             )
         
 
-def get_not_published_post(post, row_number, drive):
+def get_post_publication_details(post, row_number, drive):
 
-    not_published_posts = []
+    post_publication_details = []
     article_file_id = None
     image_file_id = None
 
-    vk_tag, telegram_tag, facebook_tag, publication_week_day_name, publication_hour, article_link, image_link, is_published = post
+    vk_tag, telegram_tag, facebook_tag, publication_week_day_name, publication_hour, article_link, image_link, is_published_tag = post
     
-    vk_tag_normalize = normalize_tag(vk_tag)
-    telegram_tag_normalize = normalize_tag(telegram_tag)
-    facebook_tag_normalize = normalize_tag(facebook_tag)
-    is_published_normalize = normalize_tag(is_published)
-    
-    if is_published_normalize=='да':
-        return
+    vk_publication = get_tag_status(vk_tag)
+    telegram_publication = get_tag_status(telegram_tag)
+    facebook_publication = get_tag_status(facebook_tag)
+    is_published = get_tag_status(is_published_tag)
         
     if article_link:
         article_file_id = extract_file_id(article_link)
@@ -211,18 +211,19 @@ def get_not_published_post(post, row_number, drive):
         
     publication_week_day = WEEK_DAYS[publication_week_day_name]
 
-    not_published_post = {
-        'vk_tag': vk_tag_normalize,
-        'telegram_tag': telegram_tag_normalize,
-        'facebook_tag': facebook_tag_normalize,
+    post_publication_details = {
+        'vk_publication': vk_publication,
+        'telegram_publication': telegram_publication,
+        'facebook_publication': facebook_publication,
         'publication_week_day': publication_week_day,
         'publication_hour': publication_hour,
         'article_file_id': article_file_id,
         'image_file_id': image_file_id,
-        'row_number': row_number
+        'is_published': is_published,
+        'row_number': row_number,
     }
     
-    return not_published_post
+    return post_publication_details
 
 
 def load_token_pickle():
@@ -315,29 +316,33 @@ def main():
         all_posts = get_all_posts(creds, spreadsheet_id, range_name)
         
         for row_number, post in enumerate(all_posts, row_start_number):
-            not_published_post = get_not_published_post(post, row_number, drive)
-            if not_published_post:
-                not_published_posts.append(not_published_post)
+            post_publication_details = get_post_publication_details(post, row_number, drive)
+            post_is_published = post_publication_details['is_published']
+            if post_is_published:
+                continue
+            not_published_posts.append(post_publication_details)
             
         posts_for_publication = find_posts_for_publication(not_published_posts)
     
-        if posts_for_publication:
-            for post in posts_for_publication:
-                send_post_to_publication(
-                    post,
-                    facebook_access_token,
-                    facebook_group_id,
-                    telegram_bot_token,
-                    telegram_chat_id,
-                    vk_login,
-                    vk_password,
-                    vk_access_token,
-                    vk_group_id,
-                    vk_album_id,
-                    drive
-                    )
-                post_row_number = post['row_number']
-                tag_published_post(creds, spreadsheet_id, post_row_number)
+        if not posts_for_publication:
+            continue
+
+        for post in posts_for_publication:
+            publish_post(
+                post,
+                facebook_access_token,
+                facebook_group_id,
+                telegram_bot_token,
+                telegram_chat_id,
+                vk_login,
+                vk_password,
+                vk_access_token,
+                vk_group_id,
+                vk_album_id,
+                drive
+                )
+            post_row_number = post['row_number']
+            tag_published_post(creds, spreadsheet_id, post_row_number)
     
         time.sleep(300)
 
